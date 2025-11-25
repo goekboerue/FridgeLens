@@ -1,0 +1,7 @@
+{
+  "name": "FridgeLens",
+  "description": "Yapay Zeka Destekli Atıksız Mutfak Asistanı. Buzdolabınızın fotoğrafını çekin, israfı önleyen tarifler alın.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

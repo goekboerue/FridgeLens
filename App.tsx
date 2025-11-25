@@ -3,6 +3,14 @@ import { AppState, Ingredient, Recipe, DIETARY_OPTIONS } from './types';
 import { analyzeFridgeImage, generateRecipesFromIngredients } from './services/geminiService';
 import { MarketIntegration } from './components/MarketIntegration';
 
+const Signature = () => (
+  <div className="w-full py-8 flex justify-center items-center opacity-70 mt-auto pointer-events-none">
+    <p className="font-handwriting text-3xl text-emerald-800/60 transform -rotate-2 select-none tracking-wide">
+      Geliştirici : Cafer Ahmet Koç
+    </p>
+  </div>
+);
+
 const RecipePlaceholder = ({ className, large = false }: { className?: string, large?: boolean }) => (
   <div className={`flex items-center justify-center bg-gradient-to-br from-emerald-50 to-orange-50 border-b border-emerald-100/50 ${className}`}>
     <div className={`relative flex items-center justify-center rounded-full bg-white/40 backdrop-blur-sm ${large ? 'p-8' : 'p-4'}`}>
@@ -317,24 +325,27 @@ const App = () => {
 
   // Render Helpers
   const renderHome = () => (
-    <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-br from-emerald-50 to-teal-100 text-center">
-      <div className="bg-white p-4 rounded-full shadow-lg mb-6 animate-bounce">
-        <span className="text-6xl">🥗</span>
+    <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-br from-emerald-50 to-teal-100 text-center relative">
+      <div className="flex-1 flex flex-col items-center justify-center w-full">
+        <div className="bg-white p-4 rounded-full shadow-lg mb-6 animate-bounce">
+          <span className="text-6xl">🥗</span>
+        </div>
+        <h1 className="text-4xl font-bold text-emerald-900 mb-2 tracking-tight">FridgeLens</h1>
+        <p className="text-lg text-emerald-700 mb-8 max-w-xs">
+          Buzdolabının fotoğrafını çek, atıksız ve lezzetli tarifler anında cebine gelsin.
+        </p>
+        <button 
+          onClick={handleStart}
+          className="w-full max-w-sm bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 px-8 rounded-2xl shadow-xl transition-all transform hover:scale-105 flex items-center justify-center gap-3"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+          </svg>
+          Mutfak Keşfine Başla
+        </button>
       </div>
-      <h1 className="text-4xl font-bold text-emerald-900 mb-2 tracking-tight">FridgeLens</h1>
-      <p className="text-lg text-emerald-700 mb-8 max-w-xs">
-        Buzdolabının fotoğrafını çek, atıksız ve lezzetli tarifler anında cebine gelsin.
-      </p>
-      <button 
-        onClick={handleStart}
-        className="w-full max-w-sm bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 px-8 rounded-2xl shadow-xl transition-all transform hover:scale-105 flex items-center justify-center gap-3"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
-        </svg>
-        Mutfak Keşfine Başla
-      </button>
+      <Signature />
     </div>
   );
 
@@ -459,6 +470,7 @@ const App = () => {
              <div className="text-center w-full py-10 text-slate-400">Hiç malzeme bulunamadı.</div>
           )}
         </div>
+        <Signature />
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.1)] rounded-t-3xl z-20 max-w-md mx-auto">
@@ -502,7 +514,7 @@ const App = () => {
   );
 
   const renderRecipeList = () => (
-    <div className="min-h-screen bg-slate-50 pb-8">
+    <div className="min-h-screen bg-slate-50 pb-8 flex flex-col">
       <div className="bg-emerald-600 text-white p-6 rounded-b-3xl shadow-lg mb-6 sticky top-0 z-10">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold">Senin İçin Seçildi</h2>
@@ -516,7 +528,7 @@ const App = () => {
         </p>
       </div>
 
-      <div className="px-6 space-y-6">
+      <div className="px-6 space-y-6 flex-1">
         {recipes.map((recipe) => (
           <div 
             key={recipe.id} 
@@ -559,6 +571,7 @@ const App = () => {
           </div>
         )}
       </div>
+      <Signature />
     </div>
   );
 
@@ -597,7 +610,7 @@ const App = () => {
           </div>
         </div>
 
-        <div className="p-6 -mt-6 bg-white rounded-t-3xl relative">
+        <div className="p-6 -mt-6 bg-white rounded-t-3xl relative min-h-screen flex flex-col">
           <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-6"></div>
           
           <h1 className="text-3xl font-bold text-slate-900 mb-2">{selectedRecipe.title}</h1>
@@ -654,7 +667,9 @@ const App = () => {
             ))}
           </ol>
           
-          <div className="h-20"></div> {/* Bottom spacer */}
+          <div className="flex-1"></div>
+          <Signature />
+          <div className="h-10"></div> {/* Bottom spacer */}
         </div>
       </div>
     );

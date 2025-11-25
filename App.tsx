@@ -4,9 +4,9 @@ import { analyzeFridgeImage, generateRecipesFromIngredients } from './services/g
 import { MarketIntegration } from './components/MarketIntegration';
 
 const Signature = () => (
-  <div className="w-full py-8 flex justify-center items-center opacity-70 mt-auto pointer-events-none">
-    <p className="font-handwriting text-3xl text-emerald-800/60 transform -rotate-2 select-none tracking-wide">
-      Geliştirici : Cafer Ahmet Koç
+  <div className="w-full py-6 flex justify-center items-center mt-auto pointer-events-none opacity-90">
+    <p className="text-sm font-medium text-slate-900 tracking-wide">
+      Geliştirici : <span className="text-emerald-600 font-bold ml-1">Cafer Ahmet Koç</span>
     </p>
   </div>
 );

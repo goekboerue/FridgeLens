@@ -4,6 +4,12 @@ export interface Ingredient {
   expiryDate?: string; // YYYY-MM-DD format
 }
 
+export interface ShoppingItem {
+  id: string;
+  name: string;
+  checked: boolean;
+}
+
 export interface Recipe {
   id: string;
   title: string;

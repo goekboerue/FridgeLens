@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { AppState, Ingredient, Recipe, DIETARY_OPTIONS } from './types';
+import { AppState, Ingredient, Recipe, DIETARY_OPTIONS, ShoppingItem } from './types';
 import { analyzeFridgeImage, generateRecipesFromIngredients } from './services/geminiService';
 import { MarketIntegration } from './components/MarketIntegration';
 
@@ -56,6 +56,42 @@ const wrapText = (ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 
 // Generate a shareable recipe card image
 const generateRecipeCard = async (recipe: Recipe): Promise<File | null> => {
+  // Use window.html2canvas if available (loaded from index.html)
+  if ((window as any).html2canvas) {
+     const element = document.getElementById('recipe-detail-content');
+     if (!element) return null;
+     
+     // Temporarily hide buttons for screenshot
+     const buttons = element.querySelectorAll('button');
+     buttons.forEach(btn => btn.style.display = 'none');
+     
+     try {
+        const canvas = await (window as any).html2canvas(element, {
+           useCORS: true,
+           backgroundColor: '#ffffff',
+           scale: 2 // High resolution
+        });
+        
+        // Show buttons again
+        buttons.forEach(btn => btn.style.display = '');
+
+        return new Promise((resolve) => {
+           canvas.toBlob((blob: Blob | null) => {
+              if (blob) {
+                 resolve(new File([blob], `fridgelens-${recipe.id}.png`, { type: 'image/png' }));
+              } else {
+                 resolve(null);
+              }
+           }, 'image/png');
+        });
+     } catch (e) {
+        buttons.forEach(btn => btn.style.display = '');
+        console.error("html2canvas error", e);
+        return null; // Fallback to canvas gen below if this fails? No, just return null.
+     }
+  }
+
+  // Fallback Manual Canvas Generation
   const canvas = document.createElement('canvas');
   const width = 800;
   const height = 1200;
@@ -169,6 +205,11 @@ const App = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSharing, setIsSharing] = useState(false);
   
+  // Shopping List State
+  const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([]);
+  const [isShoppingListOpen, setIsShoppingListOpen] = useState(false);
+  const [newShoppingItem, setNewShoppingItem] = useState("");
+
   // Preferences State
   const [dietaryPreference, setDietaryPreference] = useState<string>('Hepsi');
   const [allergies, setAllergies] = useState<string>('');
@@ -182,6 +223,16 @@ const App = () => {
   // Handlers
   const handleStart = () => {
     setAppState(AppState.CAMERA);
+  };
+
+  const handleReset = () => {
+    setAppState(AppState.HOME);
+    setIngredients([]);
+    setRecipes([]);
+    setSelectedRecipe(null);
+    setImage(null);
+    setShoppingList([]);
+    setIsShoppingListOpen(false);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -309,6 +360,40 @@ const App = () => {
     }
   };
 
+  // Shopping List Logic
+  const addToShoppingList = (items: string[]) => {
+    const newItems = items
+      .filter(item => !shoppingList.some(si => si.name === item))
+      .map(item => ({ id: Math.random().toString(36).substr(2, 9), name: item, checked: false }));
+    
+    setShoppingList([...shoppingList, ...newItems]);
+    setIsShoppingListOpen(true);
+  };
+
+  const toggleShoppingItem = (id: string) => {
+    setShoppingList(shoppingList.map(item => 
+      item.id === id ? { ...item, checked: !item.checked } : item
+    ));
+  };
+
+  const deleteShoppingItem = (id: string) => {
+    setShoppingList(shoppingList.filter(item => item.id !== id));
+  };
+
+  const addManualShoppingItem = () => {
+    if (newShoppingItem.trim()) {
+      addToShoppingList([newShoppingItem.trim()]);
+      setNewShoppingItem("");
+    }
+  };
+
+  const copyShoppingList = () => {
+    const text = "🛒 Alışveriş Listesi:\n" + shoppingList.map(item => `${item.checked ? '✅' : '⬜'} ${item.name}`).join('\n');
+    navigator.clipboard.writeText(text);
+    setError("Liste kopyalandı!");
+    setTimeout(() => setError(null), 2000);
+  };
+
   const getUrgencyLevel = (dateStr?: string) => {
     if (!dateStr) return 'none';
     const today = new Date();
@@ -408,11 +493,93 @@ const App = () => {
     </div>
   );
 
+  const renderShoppingList = () => {
+    if (!isShoppingListOpen) return null;
+    
+    return (
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+          <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-emerald-50/50">
+            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+              <span className="text-xl">🛒</span> Alışveriş Listesi
+            </h3>
+            <div className="flex gap-2">
+              <button onClick={copyShoppingList} className="text-emerald-600 hover:bg-emerald-100 p-2 rounded-lg" title="Kopyala">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75" />
+                </svg>
+              </button>
+              <button onClick={() => setIsShoppingListOpen(false)} className="text-slate-500 hover:bg-slate-100 p-2 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          
+          <div className="p-4 overflow-y-auto flex-1 bg-slate-50">
+            {shoppingList.length === 0 ? (
+              <div className="text-center py-8 text-slate-400 text-sm">
+                Listeniz boş. Tariflerden eksikleri ekleyebilir veya manuel yazabilirsiniz.
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {shoppingList.map((item) => (
+                  <li key={item.id} className="flex items-center gap-3 bg-white p-3 rounded-lg shadow-sm border border-slate-100">
+                    <button 
+                      onClick={() => toggleShoppingItem(item.id)}
+                      className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
+                        item.checked ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 bg-white'
+                      }`}
+                    >
+                      {item.checked && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+                    </button>
+                    <span className={`flex-1 text-sm font-medium ${item.checked ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                      {item.name}
+                    </span>
+                    <button onClick={() => deleteShoppingItem(item.id)} className="text-slate-300 hover:text-red-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                      </svg>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          
+          <div className="p-3 bg-white border-t border-slate-100 flex gap-2">
+            <input 
+              type="text" 
+              value={newShoppingItem}
+              onChange={(e) => setNewShoppingItem(e.target.value)}
+              placeholder="Ürün ekle..." 
+              onKeyDown={(e) => e.key === 'Enter' && addManualShoppingItem()}
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
+            />
+            <button onClick={addManualShoppingItem} className="bg-emerald-600 text-white p-2 rounded-lg hover:bg-emerald-700">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderIngredients = () => (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <div className="p-6 bg-white shadow-sm sticky top-0 z-10">
-        <h2 className="text-2xl font-bold text-slate-800">Bulunan Malzemeler</h2>
-        <p className="text-slate-500 text-sm">Son kullanma tarihlerini ekleyin, israfı önleyin.</p>
+      <div className="p-6 bg-white shadow-sm sticky top-0 z-10 flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Bulunan Malzemeler</h2>
+          <p className="text-slate-500 text-sm">Son kullanma tarihlerini ekleyin, israfı önleyin.</p>
+        </div>
+        <button onClick={handleReset} className="text-slate-400 hover:text-slate-600 p-2">
+           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+            </svg>
+        </button>
       </div>
       
       <div className="flex-1 p-6 pb-40">
@@ -517,7 +684,14 @@ const App = () => {
     <div className="min-h-screen bg-slate-50 pb-8 flex flex-col">
       <div className="bg-emerald-600 text-white p-6 rounded-b-3xl shadow-lg mb-6 sticky top-0 z-10">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">Senin İçin Seçildi</h2>
+          <div className="flex items-center gap-3">
+             <button onClick={handleReset} className="bg-emerald-700/50 p-2 rounded-lg backdrop-blur-sm hover:bg-emerald-700 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-emerald-100">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                </svg>
+             </button>
+             <h2 className="text-2xl font-bold">Senin İçin</h2>
+          </div>
           <button onClick={() => setAppState(AppState.INGREDIENTS)} className="text-emerald-100 hover:text-white text-sm bg-emerald-700/50 px-3 py-1 rounded-lg backdrop-blur-sm">
             Düzenle
           </button>
@@ -580,96 +754,129 @@ const App = () => {
 
     return (
       <div className="fixed inset-0 bg-white z-50 overflow-y-auto animate-in slide-in-from-bottom-10 duration-300">
-        <div className="relative h-64">
-          <RecipePlaceholder className="w-full h-full" large />
-          <div className="absolute top-4 left-4 right-4 flex justify-between items-center">
-            <button 
-              onClick={() => setSelectedRecipe(null)}
-              className="bg-white/50 backdrop-blur-md p-2 rounded-full hover:bg-white transition-colors text-slate-900"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-              </svg>
-            </button>
-            <button 
-              onClick={() => handleShare(selectedRecipe)}
-              disabled={isSharing}
-              className="bg-white/50 backdrop-blur-md p-2 rounded-full hover:bg-white transition-colors text-emerald-800 flex items-center gap-1 px-4 disabled:opacity-50"
-            >
-              {isSharing ? (
-                <span className="text-xs font-bold">Hazırlanıyor...</span>
-              ) : (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                    <path fillRule="evenodd" d="M15.75 4.5a3 3 0 11.825 2.066l-8.421 4.679a3.002 3.002 0 010 1.51l8.421 4.679a3 3 0 11-.729 1.31l-8.421-4.678a3 3 0 110-4.132l8.421-4.679a3 3 0 01-.096-.755z" clipRule="evenodd" />
+        <div id="recipe-detail-content" className="bg-white min-h-full">
+          <div className="relative h-64">
+            <RecipePlaceholder className="w-full h-full" large />
+            <div className="absolute top-4 left-4 right-4 flex justify-between items-center">
+              <button 
+                onClick={() => setSelectedRecipe(null)}
+                className="bg-white/50 backdrop-blur-md p-2 rounded-full hover:bg-white transition-colors text-slate-900"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                </svg>
+              </button>
+              <div className="flex gap-2">
+                 <button 
+                  onClick={() => handleReset()}
+                  className="bg-white/50 backdrop-blur-md p-2 rounded-full hover:bg-white transition-colors text-slate-900"
+                  title="Ana Sayfaya Dön"
+                 >
+                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                   </svg>
+                 </button>
+                <button 
+                  onClick={() => handleShare(selectedRecipe)}
+                  disabled={isSharing}
+                  className="bg-white/50 backdrop-blur-md p-2 rounded-full hover:bg-white transition-colors text-emerald-800 flex items-center gap-1 px-4 disabled:opacity-50"
+                >
+                  {isSharing ? (
+                    <span className="text-xs font-bold">Hazırlanıyor...</span>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                        <path fillRule="evenodd" d="M15.75 4.5a3 3 0 11.825 2.066l-8.421 4.679a3.002 3.002 0 010 1.51l8.421 4.679a3 3 0 11-.729 1.31l-8.421-4.678a3 3 0 110-4.132l8.421-4.679a3 3 0 01-.096-.755z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-sm font-bold hidden sm:inline">Paylaş</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 -mt-6 bg-white rounded-t-3xl relative flex flex-col">
+            <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-6"></div>
+            
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">{selectedRecipe.title}</h1>
+            <div className="flex gap-4 text-sm text-slate-500 mb-6 border-b border-slate-100 pb-4">
+              <span className="flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span className="text-sm font-bold">Paylaş</span>
-                </>
-              )}
-            </button>
+                  {selectedRecipe.prepTime}
+              </span>
+              <span className="flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                  </svg>
+                  {selectedRecipe.calories} kcal
+              </span>
+              <span className="flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                  </svg>
+                  {selectedRecipe.difficulty}
+              </span>
+            </div>
+
+            <p className="text-slate-600 mb-6">{selectedRecipe.description}</p>
+
+            {/* Missing Ingredients Action */}
+            {selectedRecipe.missingIngredients.length > 0 && (
+              <div onClick={() => addToShoppingList(selectedRecipe.missingIngredients)} className="cursor-pointer bg-orange-50 border border-orange-100 p-4 rounded-xl mb-6 hover:bg-orange-100 transition-colors">
+                 <div className="flex items-center gap-3 mb-2">
+                    <div className="bg-orange-100 p-2 rounded-full text-orange-600">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                       <h4 className="font-bold text-orange-900 text-sm">Eksikleri Listeye Ekle</h4>
+                       <p className="text-xs text-orange-700">{selectedRecipe.missingIngredients.length} malzeme eksik. Alışveriş listesi oluştur.</p>
+                    </div>
+                    <div className="ml-auto text-orange-600">
+                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z" clipRule="evenodd" />
+                       </svg>
+                    </div>
+                 </div>
+              </div>
+            )}
+
+            <h3 className="font-bold text-lg text-slate-900 mt-2 mb-3">Malzemeler</h3>
+            <ul className="space-y-2 mb-8">
+              {selectedRecipe.usedIngredients.map((ing, i) => (
+                <li key={i} className="flex items-center gap-3 text-slate-700">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                  {ing}
+                </li>
+              ))}
+              {selectedRecipe.missingIngredients.map((ing, i) => (
+                <li key={`missing-${i}`} className="flex items-center gap-3 text-slate-400 decoration-slate-300">
+                  <div className="w-2 h-2 rounded-full bg-orange-300"></div>
+                  {ing} (Eksik)
+                </li>
+              ))}
+            </ul>
+
+            <h3 className="font-bold text-lg text-slate-900 mb-3">Hazırlanışı</h3>
+            <ol className="space-y-6">
+              {selectedRecipe.instructions.map((step, i) => (
+                <li key={i} className="flex gap-4">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm">
+                    {i + 1}
+                  </div>
+                  <p className="text-slate-700 pt-1 leading-relaxed">{step}</p>
+                </li>
+              ))}
+            </ol>
+            
+            <div className="flex-1"></div>
+            <Signature />
+            <div className="h-10"></div> {/* Bottom spacer */}
           </div>
-        </div>
-
-        <div className="p-6 -mt-6 bg-white rounded-t-3xl relative min-h-screen flex flex-col">
-          <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-6"></div>
-          
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">{selectedRecipe.title}</h1>
-          <div className="flex gap-4 text-sm text-slate-500 mb-6 border-b border-slate-100 pb-4">
-             <span className="flex items-center gap-1">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {selectedRecipe.prepTime}
-             </span>
-             <span className="flex items-center gap-1">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-                </svg>
-                {selectedRecipe.calories} kcal
-             </span>
-             <span className="flex items-center gap-1">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-                </svg>
-                {selectedRecipe.difficulty}
-             </span>
-          </div>
-
-          <p className="text-slate-600 mb-6">{selectedRecipe.description}</p>
-
-          <MarketIntegration missingIngredients={selectedRecipe.missingIngredients} />
-
-          <h3 className="font-bold text-lg text-slate-900 mt-6 mb-3">Malzemeler</h3>
-          <ul className="space-y-2 mb-8">
-            {selectedRecipe.usedIngredients.map((ing, i) => (
-              <li key={i} className="flex items-center gap-3 text-slate-700">
-                <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                {ing}
-              </li>
-            ))}
-            {selectedRecipe.missingIngredients.map((ing, i) => (
-              <li key={`missing-${i}`} className="flex items-center gap-3 text-slate-400 decoration-slate-300">
-                 <div className="w-2 h-2 rounded-full bg-orange-300"></div>
-                 {ing} (Eksik)
-              </li>
-            ))}
-          </ul>
-
-          <h3 className="font-bold text-lg text-slate-900 mb-3">Hazırlanışı</h3>
-          <ol className="space-y-6">
-            {selectedRecipe.instructions.map((step, i) => (
-              <li key={i} className="flex gap-4">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm">
-                  {i + 1}
-                </div>
-                <p className="text-slate-700 pt-1 leading-relaxed">{step}</p>
-              </li>
-            ))}
-          </ol>
-          
-          <div className="flex-1"></div>
-          <Signature />
-          <div className="h-10"></div> {/* Bottom spacer */}
         </div>
       </div>
     );
@@ -696,6 +903,7 @@ const App = () => {
       {appState === AppState.INGREDIENTS && renderIngredients()}
       {appState === AppState.GENERATING_RECIPES && renderLoading("Şef Düşünüyor")}
       {appState === AppState.RECIPES && renderRecipeList()}
+      {renderShoppingList()}
       {selectedRecipe && renderRecipeDetail()}
     </div>
   );

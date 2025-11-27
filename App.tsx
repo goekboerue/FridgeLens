@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AppState, Ingredient, Recipe, DIETARY_OPTIONS, ShoppingItem } from './types';
 import { analyzeFridgeImage, generateRecipesFromIngredients } from './services/geminiService';
-import { MarketIntegration } from './components/MarketIntegration';
 
 const Signature = () => (
   <div className="w-full py-6 flex justify-center items-center mt-auto pointer-events-none opacity-90">
